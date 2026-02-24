@@ -22,7 +22,7 @@ Built for a real use case: Tim's brother is chief of staff for Congressman Thoma
 ```bash
 # Install
 python3 -m venv .venv && source .venv/bin/activate
-pip install click flask anthropic httpx rich pytest
+pip install click anthropic httpx rich pytest
 
 # Process a local bill file
 PYTHONPATH=src python -m porkchop.cli process <bill-text-file> --bill-id HR-10515
@@ -62,11 +62,11 @@ cd web && npm install && npm run dev
 Processed H.R. 10515 — "Further Continuing Appropriations and Disaster Relief Supplemental Appropriations Act, 2025" (includes Tropical Storm Helene disaster relief for WNC):
 
 - 37,261 raw lines → 29,525 cleaned → 207 sections
-- 311 funding items ($192B total)
-- 1,554 legal references (US Code + Public Laws + Acts)
+- 285 funding items ($192B total) with purpose and recipient extraction
+- 891 legal references (US Code + Public Laws + Acts)
 - 94 deadlines
-- 51 entities
-- 102 tests passing
+- 117 entities
+- 89 tests passing (27 extractor, 18 database, 16 cleaner, 11 chunker, 9 scorer, 8 comparator)
 
 ## Web Frontend
 
@@ -74,8 +74,11 @@ The `web/` directory contains the Next.js frontend:
 
 - **Marketing pages** — Landing, How It Works, About
 - **App pages** — Dashboard, bill detail, spending tables, pork analysis, version comparison, search
-- **REST API** — 13 endpoints under `/api/v1/` (bills, spending, pork, deadlines, entities, references, sections, versions, summaries, comparison, search, stats)
-- **MCP server** — 12 tools for LLM access to bill data (`web/mcp/`)
+- **REST API** — 15 endpoints under `/api/v1/` (bills, spending, pork, deadlines, entities, references, sections, versions, summaries, comparison, search, stats, process, chat)
+- **MCP server** — 12 tools for LLM access to bill data (`web/mcp/`) — tested and working
+- **On-demand processing** — Enter any bill number, PorkChop fetches and processes it
+- **AI chat** — Ask questions about any bill using your own API key (Anthropic, OpenAI, xAI)
+- **BYOK** — Users bring their own API keys, stored in browser localStorage only
 
 ```bash
 cd web && npm install && npm run dev
@@ -99,7 +102,7 @@ cd web && npm install && npm run dev
 PYTHONPATH=src pytest tests/ -v
 ```
 
-102 tests across 8 test files: cleaner, chunker, extractor, database, ingestion, comparator, scorer, web.
+89 tests across 7 test files: cleaner, chunker, extractor (27), database, ingestion, comparator, scorer.
 
 ## License
 

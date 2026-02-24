@@ -67,7 +67,11 @@ Regex-based extraction produces structured dicts per chunk:
 - **US Code references** — "42 U.S.C. 3030a" pattern
 - **Public Laws** — "Public Law 118-42" pattern
 - **Named Acts** — Multi-word phrases ending in "Act" or "Code"
-- **Funding** — Dollar amounts with purpose, availability, fiscal years. Handles scale words (million, billion).
+- **Funding** — Dollar amounts with multi-strategy purpose extraction, recipient detection, availability, fiscal years. Handles scale words (million, billion).
+  - 5 purpose extraction patterns: "necessary expenses", "additional amount for FY...for X", "made available for", "carry out/conduct", generic "for X" with negative lookaheads
+  - Recipient extraction: "transferred to X", "to the Department of X", agency patterns
+  - Fiscal year filtering: rejects "fiscal year 2025" as a purpose
+  - Purpose quality gate: rejects short/noise strings under 10 chars
 - **Dates** — Full date pattern + fiscal year extraction
 - **Deadlines** — "not later than" with backward context search for action
 - **Duties** — "The Secretary shall/may/must..." with entity and action
@@ -123,15 +127,16 @@ Next.js 16 app with dark theme and pork-score color coding. Three interfaces:
 |------|------|
 | `/dashboard` | Recent bills, aggregate stats |
 | `/bills` | Bill list with sorting |
-| `/bills/:id` | Bill detail — summary, spending, deadlines, refs, entities, pork, external links to Congress.gov/GovInfo |
+| `/bills/:id` | Bill detail — summary, spending, deadlines, refs, entities, pork, external links to Congress.gov/GovInfo, AI chat |
 | `/bills/:id/spending` | Full spending table with expandable source text and pork scores |
 | `/bills/:id/pork` | Pork analysis — distribution, scored items |
 | `/bills/:id/compare` | Version comparison picker + diff view |
+| `/process` | On-demand bill processing — enter a bill number, PorkChop fetches and analyzes it |
 | `/search` | Full-text search across bills |
 
-**REST API** (`/api/v1/`): 13 JSON endpoints mirroring all data access.
+**REST API** (`/api/v1/`): 15 JSON endpoints including `/process` (on-demand bill processing) and `/chat` (AI Q&A about bills).
 
-**MCP server** (`web/mcp/`): 12 tools for LLM access via stdio transport.
+**MCP server** (`web/mcp/`): 12 tools for LLM access via stdio transport. Tested and working.
 
 ## Database Schema
 
@@ -169,11 +174,11 @@ Bill ID parser accepts flexible formats: `HR-10515`, `118-hr-10515`, `hr10515`, 
 | Raw lines | 37,261 |
 | Cleaned lines | 29,525 (21% reduction) |
 | Sections | 207 |
-| Funding items | 311 |
+| Funding items | 285 (23% with extracted purpose, 3% with recipient) |
 | Total spending | $192,015,988,007 |
-| Legal references | 1,554 |
+| Legal references | 891 |
 | Deadlines | 94 |
-| Entities | 51 |
+| Entities | 117 |
 
 Structure: Division A (Continuing Appropriations), Division B (Disaster Relief — Helene/WNC), Division C (Veterans, Foreign Affairs, Cybersecurity), Division D (Commerce, Blockchain, 6G), plus additional divisions for healthcare, energy, education, defense.
 
@@ -184,6 +189,7 @@ Structure: Division A (Continuing Appropriations), Division B (Disaster Relief �
 | **Regex + Claude coexist** | Regex is free and reliable for structured data. Claude adds semantic understanding. Neither replaces the other. |
 | **SQLite** | Portable, no server, proven at this scale (bluePages uses same pattern for 1,166 businesses). |
 | **Click CLI** | Consistent with bluePages, subcommand-friendly, better than argparse for complex tools. |
-| **Flask + Jinja2** | Lightweight, same pattern as bluePages, no JS build step needed. |
+| **Next.js 16** | Full-stack React with API routes, replaces Flask. Same stack as other projects. |
+| **BYOK (Bring Your Own Key)** | Users provide their own LLM API keys (Anthropic/OpenAI/xAI). Stored in browser localStorage only, never server-side. |
 | **Haiku for bulk, Sonnet for synthesis** | Cost optimization. Per-section extraction is high-volume/low-complexity (Haiku). Bill summary is low-volume/high-complexity (Sonnet). |
 | **Structure-based chunking default** | Preserves legislative intent. A chunk = a logical legislative unit. Size-based available as option for when structure markers are absent. |

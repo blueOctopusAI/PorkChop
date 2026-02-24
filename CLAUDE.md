@@ -17,11 +17,12 @@ Originally a regex-only prototype (Dec 2024, pre-Claude Code). Modernized Feb 20
 ## Current State
 
 - **Version:** 1.0.0
-- **Tests:** 102 passing (cleaner, chunker, extractor, database, ingestion, comparator, scorer, web)
-- **Bill processed:** H.R. 10515 — 37,261 raw lines → 207 sections, 311 funding items ($192B), 1,554 legal refs, 94 deadlines, 51 entities
+- **Tests:** 89 passing (cleaner, chunker, extractor, database, comparator, scorer)
+- **Bill processed:** H.R. 10515 — 37,261 raw lines → 207 sections, 285 funding items ($192B), 891 legal refs, 94 deadlines, 117 entities
 - **Backend stack:** Python 3.10+, Click, SQLite, Claude API (Haiku + Sonnet), httpx, Rich
 - **Frontend stack:** Next.js 16, TypeScript, Tailwind v4, better-sqlite3, MCP SDK
-- **Dependencies:** click, flask, anthropic, httpx, rich (dev: pytest, pytest-cov)
+- **Dependencies:** click, anthropic, httpx, rich (dev: pytest, pytest-cov)
+- **MCP server:** Tested and working — 12 tools, stdio transport, Claude Desktop ready
 
 ## Architecture
 
@@ -56,31 +57,29 @@ PorkChop/
 │   ├── cli.py                    # Click CLI — 11 commands
 │   ├── cleaner.py                # Text cleaning (3-phase regex)
 │   ├── chunker.py                # Chunking (size + structure strategies)
-│   ├── extractor.py              # Regex fact extraction
+│   ├── extractor.py              # Regex fact extraction (multi-strategy purpose + recipient)
 │   ├── database.py               # SQLite — 10 tables, CRUD, stats
 │   ├── ingestion.py              # Congress.gov + GovInfo API clients
 │   ├── analyzer.py               # Claude-powered semantic analysis
 │   ├── comparator.py             # Bill version diff + semantic comparison
-│   ├── scorer.py                 # Pork scoring (heuristic + AI)
-│   └── __init__.py               # (Flask web removed — replaced by Next.js)
-├── tests/                        # 102 tests
+│   └── scorer.py                 # Pork scoring (heuristic + AI)
+├── tests/                        # 89 tests
 │   ├── conftest.py               # Fixtures (sample text, temp DB)
 │   ├── test_cleaner.py           # 16 tests
 │   ├── test_chunker.py           # 11 tests
-│   ├── test_extractor.py         # 15 tests
+│   ├── test_extractor.py         # 27 tests (purpose, recipient, fiscal year)
 │   ├── test_database.py          # 18 tests
-│   ├── test_ingestion.py         # 9 tests
+│   ├── test_ingestion.py         # 9 tests (requires httpx)
 │   ├── test_comparator.py        # 8 tests
-│   ├── test_scorer.py            # 9 tests
-│   └── test_web.py               # 16 tests
+│   └── test_scorer.py            # 9 tests
 ├── web/                          # Next.js frontend
 │   ├── src/
 │   │   ├── app/                  # App Router pages + API routes
 │   │   │   ├── (marketing)/      # Landing, How It Works, About
-│   │   │   ├── (app)/            # Dashboard, bills, spending, pork, compare, search
-│   │   │   └── api/v1/           # 13 REST API endpoints
-│   │   ├── components/layout/    # AppSidebar, MobileNav, MarketingNav, MarketingFooter
-│   │   └── lib/                  # db.ts, types.ts, format.ts, pork-colors.ts, api.ts, config.ts
+│   │   │   ├── (app)/            # Dashboard, bills, spending, pork, compare, search, process
+│   │   │   └── api/v1/           # 15 REST API endpoints (incl. chat + process)
+│   │   ├── components/           # SettingsModal, BillChat, layout/
+│   │   └── lib/                  # db.ts, types.ts, format.ts, pork-colors.ts, llm.ts, settings.ts
 │   └── mcp/                      # MCP server (12 tools, stdio transport)
 │       └── src/index.ts
 └── data/                         # Runtime (gitignored)
@@ -127,5 +126,5 @@ PYTHONPATH=src pytest tests/ -v
 ## Related Projects
 
 - **intelligence-hub** — Same architecture pattern (messy input → chunk → extract → structure)
-- **bluePages** — Same pattern (crawl → parse → score → report), same stack (Python/Flask/SQLite/Click)
+- **bluePages** — Same pattern (crawl → parse → score → report), same stack (Python/SQLite/Click)
 - **BanksAerospace** — Government contract data, same domain (federal spending)
