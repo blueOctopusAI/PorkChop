@@ -87,6 +87,21 @@ export default function AboutPage() {
         </div>
       </section>
 
+      {/* Bring Your Own Key */}
+      <section className="mb-12">
+        <h2 className="text-2xl font-bold mb-4">Your Keys, Your Data</h2>
+        <p className="text-text-dim mb-4">
+          PorkChop supports multiple AI providers — Anthropic, OpenAI, and xAI.
+          You bring your own API key. It stays in your browser and is never
+          stored on our servers. You pay your own usage, and you pick the
+          provider that meets your compliance requirements.
+        </p>
+        <p className="text-text-dim">
+          Once a bill is processed, the structured data is cached for
+          everyone. Only the AI chat and summaries require an API key.
+        </p>
+      </section>
+
       {/* Open Source */}
       <section className="mb-12">
         <h2 className="text-2xl font-bold mb-4">Open Source</h2>
@@ -106,9 +121,19 @@ export default function AboutPage() {
       {/* Built By */}
       <section className="mb-12">
         <h2 className="text-2xl font-bold mb-4">Built By</h2>
-        <p className="text-text-dim">
+        <p className="text-text-dim mb-4">
           PorkChop is a{" "}
           <span className="text-accent">Blue Octopus Technology</span> project.
+        </p>
+        <p className="text-text-dim">
+          <a
+            href="https://github.com/blueOctopusAI/PorkChop"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            View on GitHub
+          </a>
         </p>
       </section>
 

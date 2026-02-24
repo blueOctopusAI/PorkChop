@@ -473,7 +473,7 @@ def search(ctx, query):
     table.add_column("Status")
     for r in results:
         bill_label = f"{r['bill_type'].upper()} {r['bill_number']} ({r['congress']}th)"
-        table.add_row(str(r["id"]), bill_label, (r.get("title") or "")[:60], r.get("status", "")[:40])
+        table.add_row(str(r["id"]), bill_label, (r.get("title") or "")[:60], (r.get("status") or "")[:40])
     console.print(table)
 
 
