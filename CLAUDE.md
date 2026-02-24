@@ -17,8 +17,8 @@ Originally a regex-only prototype (Dec 2024, pre-Claude Code). Modernized Feb 20
 ## Current State
 
 - **Version:** 1.0.0
-- **Tests:** 89 passing (cleaner, chunker, extractor, database, comparator, scorer)
-- **Bill processed:** H.R. 10515 — 37,261 raw lines → 207 sections, 285 funding items ($192B), 891 legal refs, 94 deadlines, 117 entities
+- **Tests:** 104 passing (cleaner, chunker, extractor, database, ingestion, comparator, scorer)
+- **Bills processed:** 7 bills including H.R. 10515, 3684, 5376, 815, 3935, 2670, 4366 — 1,521 spending items with purposes (40%), 49 recipients, 317 deadlines
 - **Backend stack:** Python 3.10+, Click, SQLite, Claude API (Haiku + Sonnet), httpx, Rich
 - **Frontend stack:** Next.js 16, TypeScript, Tailwind v4, better-sqlite3, MCP SDK
 - **Dependencies:** click, anthropic, httpx, rich (dev: pytest, pytest-cov)
@@ -57,17 +57,18 @@ PorkChop/
 │   ├── cli.py                    # Click CLI — 11 commands
 │   ├── cleaner.py                # Text cleaning (3-phase regex)
 │   ├── chunker.py                # Chunking (size + structure strategies)
-│   ├── extractor.py              # Regex fact extraction (multi-strategy purpose + recipient)
+│   ├── extractor.py              # Regex fact extraction (DOTALL cross-newline, 5 purpose strategies, subheading fallback, recipient detection)
 │   ├── database.py               # SQLite — 10 tables, CRUD, stats
 │   ├── ingestion.py              # Congress.gov + GovInfo API clients
 │   ├── analyzer.py               # Claude-powered semantic analysis
 │   ├── comparator.py             # Bill version diff + semantic comparison
-│   └── scorer.py                 # Pork scoring (heuristic + AI)
-├── tests/                        # 89 tests
+│   ├── scorer.py                 # Pork scoring (heuristic + AI)
+│   └── api.py                    # FastAPI standalone API (process, health, bills)
+├── tests/                        # 104 tests
 │   ├── conftest.py               # Fixtures (sample text, temp DB)
 │   ├── test_cleaner.py           # 16 tests
 │   ├── test_chunker.py           # 11 tests
-│   ├── test_extractor.py         # 27 tests (purpose, recipient, fiscal year)
+│   ├── test_extractor.py         # 33 tests (purpose, recipient, fiscal year, deadlines, subheadings)
 │   ├── test_database.py          # 18 tests
 │   ├── test_ingestion.py         # 9 tests (requires httpx)
 │   ├── test_comparator.py        # 8 tests

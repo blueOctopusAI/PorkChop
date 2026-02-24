@@ -59,14 +59,12 @@ cd web && npm install && npm run dev
 
 ## Real Data
 
-Processed H.R. 10515 — "Further Continuing Appropriations and Disaster Relief Supplemental Appropriations Act, 2025" (includes Tropical Storm Helene disaster relief for WNC):
+7 bills processed including H.R. 10515 (Continuing Appropriations + Helene Relief), H.R. 3684 (Infrastructure), H.R. 5376 (Inflation Reduction), H.R. 815 (Ukraine/Israel Aid), H.R. 3935 (FAA Reauthorization):
 
-- 37,261 raw lines → 29,525 cleaned → 207 sections
-- 285 funding items ($192B total) with purpose and recipient extraction
-- 891 legal references (US Code + Public Laws + Acts)
-- 94 deadlines
-- 117 entities
-- 89 tests passing (27 extractor, 18 database, 16 cleaner, 11 chunker, 9 scorer, 8 comparator)
+- 1,521 spending items with extracted purposes (40% of 3,220 total), 49 recipients identified
+- 891 legal references (US Code + Public Laws + Acts) on H.R. 10515 alone
+- 317 deadlines with forward-looking action extraction (92% have meaningful action text)
+- 104 tests passing (33 extractor, 18 database, 16 cleaner, 11 chunker, 9 ingestion, 9 scorer, 8 comparator)
 
 ## Web Frontend
 
@@ -102,7 +100,7 @@ cd web && npm install && npm run dev
 PYTHONPATH=src pytest tests/ -v
 ```
 
-89 tests across 7 test files: cleaner, chunker, extractor (27), database, ingestion, comparator, scorer.
+104 tests across 7 test files: cleaner (16), chunker (11), extractor (33), database (18), ingestion (9), comparator (8), scorer (9).
 
 ## License
 

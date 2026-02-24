@@ -27,28 +27,33 @@ DOLLAR_PATTERN = re.compile(
 )
 APPROPRIATION_PATTERN = re.compile(
     r"\$\s*[\d,]+(?:\.\d+)?,?\s*(?:thousand|million|billion|trillion)?"
-    r"(?P<context>[^.;]{0,300})",
-    re.IGNORECASE,
+    r"(?P<context>.{0,300}?)(?:\.\s|\.$|;\s|$)",
+    re.IGNORECASE | re.DOTALL,
 )
 
 # --- Purpose extraction patterns (ordered by specificity) ---
+_P = re.IGNORECASE | re.DOTALL
+# End-of-purpose terminators: period+space, period+end, newline pair, semicolon, Provided clause, end-of-string
+_END = r"(?:[:,]\s*(?:to\s|of\s|and\s)|;\s|\.\s|\.$|\n\n|:\s*Provided|$)"
 PURPOSE_PATTERNS = [
     # "for necessary expenses related to X"
-    re.compile(r"for\s+necessary\s+expenses\s+(?:related\s+to\s+)?(.{10,150}?)(?:,\s*(?:to|of|and)|;|\.|$)", re.IGNORECASE),
+    re.compile(rf"for\s+necessary\s+expenses\s+(?:related\s+to\s+|of\s+)?(.{{10,150}}?){_END}", _P),
     # "for an additional amount for FY XXXX, ... for the X program"
-    re.compile(r"for\s+an\s+additional\s+amount\s+for\s+fiscal\s+year\s+\d{4}.{0,100}?for\s+(?:the\s+)?(.{10,150}?)(?::|;|\.|$)", re.IGNORECASE),
+    re.compile(rf"for\s+an\s+additional\s+amount\s+for\s+fiscal\s+year\s+\d{{4}}.{{0,100}}?for\s+(?:the\s+)?(.{{10,150}}?){_END}", _P),
     # "shall be made available for the Secretary to X"
-    re.compile(r"shall\s+be\s+(?:made\s+)?available\s+(?:for\s+)?(?:the\s+)?(?:Secretary\s+to\s+)?(.{10,150}?)(?::|;|\.|$)", re.IGNORECASE),
-    # "to carry out X" / "to conduct X"
-    re.compile(r"(?:to\s+carry\s+out|to\s+conduct)\s+(.{10,150}?)(?::|;|\.|$)", re.IGNORECASE),
+    re.compile(rf"shall\s+be\s+(?:made\s+)?available\s+(?:for\s+)?(?:the\s+)?(?:Secretary\s+to\s+)?(.{{10,150}}?){_END}", _P),
+    # "to carry out X" / "to conduct X" / "to provide X" / "to make X" / "to fund X"
+    re.compile(rf"(?:to\s+carry\s+out|to\s+conduct|to\s+provide|to\s+make|to\s+fund)\s+(.{{10,150}}?){_END}", _P),
     # "for X" — generic, but skip fiscal year / periods / additional amount as purpose
-    re.compile(r"for\s+(?!(?:fiscal\s+year|each\s+of\s+fiscal|the\s+period\s+beginning|an\s+additional\s+amount))(.{10,150}?)(?:,\s*(?:to|of|and)|;|\.|$)", re.IGNORECASE),
+    re.compile(rf"for\s+(?!(?:fiscal\s+year|each\s+of\s+fiscal|the\s+period\s+beginning|an\s+additional\s+amount|the\s+period\s+of))(.{{10,150}}?){_END}", _P),
 ]
 
 # --- Recipient patterns ---
 RECIPIENT_PATTERNS = [
     # "transferred to 'Department of X—Y'" or "transferred to ''X''"
     re.compile(r"transferred\s+to\s+['\u2018\u2019\u201c\u201d]{0,2}([^''\n]{5,80}?)['\u2018\u2019\u201c\u201d]{0,2}(?:\s+for|\s*$)", re.IGNORECASE),
+    # "to the Secretary of X"
+    re.compile(r"to\s+the\s+(Secretary\s+of\s+[A-Z][a-z]+(?:\s+(?:and\s+)?[A-Z][a-z]+){0,3})", re.IGNORECASE),
     # "to the Department of X"
     re.compile(r"to\s+the\s+(Department\s+of\s+[A-Z][a-z]+(?:\s+(?:and\s+)?[A-Z][a-z]+){0,3})", re.IGNORECASE),
     # "to the X Administration/Agency/Commission"
@@ -69,10 +74,11 @@ DATE_PATTERN = re.compile(
 )
 FISCAL_YEAR_PATTERN = re.compile(r"fiscal year (\d{4})", re.IGNORECASE)
 NOT_LATER_THAN = re.compile(
-    r"not later than\s+(?:(\d+)\s+days?\s+after\s+[^,;.]+|"
+    r"not\s+later\s+than\s+(?:(\d+)\s+days?\s+after\s+(?:the\s+date\s+of\s+)?[^,;.]{5,80}|"
     r"((?:January|February|March|April|May|June|July|August|September|"
-    r"October|November|December)\s+\d{1,2},\s*\d{4}))",
-    re.IGNORECASE,
+    r"October|November|December)\s+\d{1,2},\s*\d{4}))"
+    r"[,;]?\s*(?:the\s+)?(.{10,200}?)(?:\.\s|\.$|\n\n|;\s|:\s*Provided)",
+    re.IGNORECASE | re.DOTALL,
 )
 
 # --- Duty/requirement patterns ---
@@ -101,8 +107,15 @@ SCALE_MULTIPLIERS = {
 }
 
 # Noise patterns that shouldn't be accepted as purpose
-_FISCAL_YEAR_ONLY = re.compile(r"^(?:fiscal\s+year\s+\d{4}|each\s+of\s+fiscal\s+years)", re.IGNORECASE)
-_PERIOD_BEGINNING = re.compile(r"^the\s+period\s+beginning", re.IGNORECASE)
+_FISCAL_YEAR_ONLY = re.compile(r"^(?:fiscal\s+year\s+\d{4}|each\s+of\s+(?:the\s+)?fiscal\s+years|each\s+of\s+those\s+fiscal)", re.IGNORECASE)
+_PERIOD_BEGINNING = re.compile(r"^the\s+period\s+(?:beginning|of\s+fiscal)", re.IGNORECASE)
+_JUNK_PURPOSE = re.compile(
+    r"^(?:such\s+purpose|this\s+(?:section|subsection|chapter|title)|such\s+amounts?|"
+    r"``\$|an\s+emergency\s+requirement|the\s+period\s+of|"
+    r"the\s+matter\s+preceding|paragraph\s+\(\d|that\s+amount|"
+    r"to\s+the\s+Secretary\b|related\s+expenses$)",
+    re.IGNORECASE,
+)
 
 
 def parse_dollar_amount(amount_str: str, scale: str | None = None) -> float:
@@ -127,10 +140,12 @@ def _clean_purpose(purpose: str | None) -> str | None:
     # Reject if too short (single word or less)
     if len(purpose) < 10:
         return None
-    # Reject if it's just a fiscal year reference
+    # Reject if it's just a fiscal year reference or other junk
     if _FISCAL_YEAR_ONLY.match(purpose):
         return None
     if _PERIOD_BEGINNING.match(purpose):
+        return None
+    if _JUNK_PURPOSE.match(purpose):
         return None
     # Clean up newlines from source text
     purpose = re.sub(r"\s+", " ", purpose)
@@ -158,12 +173,25 @@ def _extract_purpose_backward(text: str, match_start: int) -> str | None:
     start = max(0, match_start - 300)
     backward = text[start:match_start]
 
+    # Try forward purpose patterns on the backward text (purpose before amount)
+    purpose = _extract_purpose(backward)
+    if purpose:
+        return purpose
+
     # Look for heading context
     heading_m = HEADING_PATTERN.search(backward)
     if heading_m:
         heading = heading_m.group(1).strip()
         if len(heading) > 10:
             return _clean_purpose(heading)
+
+    # Look for sub-heading patterns like "OPERATIONS AND MAINTENANCE" or "PROCUREMENT"
+    subheading = re.search(r"\n\s*([A-Z][A-Z ,\-&]{8,80})\s*\n", backward)
+    if subheading:
+        heading = subheading.group(1).strip()
+        # Skip if it's just a state or boilerplate
+        if len(heading) > 10 and not re.match(r"^(SEC|SECTION|TITLE|DIVISION)\b", heading):
+            return _clean_purpose(heading.title())
 
     return None
 
@@ -285,12 +313,19 @@ def extract_facts(text: str) -> dict[str, Any]:
     # --- Deadlines ---
     for m in NOT_LATER_THAN.finditer(text):
         date = m.group(2) or f"{m.group(1)} days"
-        # Look backward in text for context
-        start = max(0, m.start() - 200)
-        context = text[start : m.start()].strip()
-        # Get last sentence fragment for the action
-        action_parts = re.split(r"[.;]", context)
-        action = action_parts[-1].strip() if action_parts else "unspecified"
+        # Action is group 3 (text after the deadline date)
+        action = m.group(3) or ""
+        action = re.sub(r"\s+", " ", action).strip()
+        # Clean up leading boilerplate
+        action = re.sub(r"^(?:the\s+)?(?:Secretary|Administrator|Director|Commissioner)\s+shall\s+", "", action, flags=re.IGNORECASE)
+        # Reject garbage: starts with punctuation, "Provided", "SEC.", truncated words
+        if not action or len(action) < 10:
+            action = "unspecified"
+        elif re.match(r"^[.;,''\"]|^That\s+such|^SEC\.\s|^TITLE\s|^\w{1,4}$", action, re.IGNORECASE):
+            action = "unspecified"
+        # Truncate long actions
+        if len(action) > 200:
+            action = action[:200].rsplit(" ", 1)[0] + "..."
         facts["deadlines"].append({"date": date, "action": action})
 
     # --- Duties ---

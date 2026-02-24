@@ -51,15 +51,23 @@ export default async function SpendingPage({
           {spending.length} items totaling {formatCurrencyFull(total)}.
           Click any row to see the source text.
         </p>
-        <a
-          href={`https://www.congress.gov/bill/${bill.congress}th-congress/house-bill/${bill.bill_number}/text`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-text-dim hover:text-accent flex items-center gap-1 transition-colors"
-        >
-          <ExternalLink className="w-3 h-3" />
-          Verify on Congress.gov
-        </a>
+        <div className="flex items-center gap-4">
+          <Link
+            href={`/bills/${billId}/pork`}
+            className="text-sm text-accent hover:underline"
+          >
+            Pork Analysis
+          </Link>
+          <a
+            href={`https://www.congress.gov/bill/${bill.congress}th-congress/house-bill/${bill.bill_number}/text`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-text-dim hover:text-accent flex items-center gap-1 transition-colors"
+          >
+            <ExternalLink className="w-3 h-3" />
+            Verify on Congress.gov
+          </a>
+        </div>
       </div>
 
       <div className="bg-surface border border-border rounded-lg overflow-x-auto">

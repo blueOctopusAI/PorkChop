@@ -45,7 +45,15 @@ export default async function PorkPage({
         <span className="text-text-dim">/</span>
         <span className="text-sm">Pork Analysis</span>
       </div>
-      <h1 className="text-2xl font-bold mb-6">Pork Analysis</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Pork Analysis</h1>
+        <Link
+          href={`/bills/${billId}/spending`}
+          className="text-sm text-accent hover:underline"
+        >
+          Full Spending Table &rarr;
+        </Link>
+      </div>
 
       {scores.length === 0 ? (
         <div className="bg-surface border border-border rounded-lg p-8 text-center text-text-dim">

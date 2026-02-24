@@ -67,13 +67,15 @@ Regex-based extraction produces structured dicts per chunk:
 - **US Code references** — "42 U.S.C. 3030a" pattern
 - **Public Laws** — "Public Law 118-42" pattern
 - **Named Acts** — Multi-word phrases ending in "Act" or "Code"
-- **Funding** — Dollar amounts with multi-strategy purpose extraction, recipient detection, availability, fiscal years. Handles scale words (million, billion).
-  - 5 purpose extraction patterns: "necessary expenses", "additional amount for FY...for X", "made available for", "carry out/conduct", generic "for X" with negative lookaheads
-  - Recipient extraction: "transferred to X", "to the Department of X", agency patterns
-  - Fiscal year filtering: rejects "fiscal year 2025" as a purpose
-  - Purpose quality gate: rejects short/noise strings under 10 chars
+- **Funding** — Dollar amounts with multi-strategy purpose extraction, recipient detection, availability, fiscal years. Handles scale words (million, billion). All patterns use `re.DOTALL` to cross newlines in raw bill text.
+  - 5 purpose extraction patterns: "necessary expenses", "additional amount for FY...for X", "made available for", "carry out/conduct/provide/make/fund", generic "for X" with negative lookaheads
+  - Backward purpose search: tries forward patterns on preceding text, then matches uppercase subheadings (e.g., "OPERATIONS AND MAINTENANCE, NAVY"), then legislative structure headings
+  - Recipient extraction: "transferred to X", "to the Secretary of X", "to the Department of X", agency patterns
+  - Junk purpose filter: rejects fiscal year references, "such purpose", "this section/chapter", "to the Secretary", "related expenses", emergency requirement boilerplate, quoted amounts
+  - Purpose quality gate: rejects strings under 10 chars
+  - Result: 40% of spending items have meaningful purposes (up from ~5% in v0)
 - **Dates** — Full date pattern + fiscal year extraction
-- **Deadlines** — "not later than" with backward context search for action
+- **Deadlines** — "not later than" with forward-looking action extraction (captures text AFTER the deadline date, not before). Garbage filter rejects fragments starting with punctuation, "Provided, That" clauses, or section headers. 92% of deadlines have meaningful action text.
 - **Duties** — "The Secretary shall/may/must..." with entity and action
 - **Entities** — Departments, Offices, Bureaus, Agencies with deduplication
 
@@ -167,6 +169,8 @@ Bill ID parser accepts flexible formats: `HR-10515`, `118-hr-10515`, `hr10515`, 
 
 ## Bill Processed
 
+7 bills processed. Flagship example:
+
 **H.R. 10515** — Further Continuing Appropriations and Disaster Relief Supplemental Appropriations Act, 2025
 
 | Metric | Value |
@@ -174,11 +178,13 @@ Bill ID parser accepts flexible formats: `HR-10515`, `118-hr-10515`, `hr10515`, 
 | Raw lines | 37,261 |
 | Cleaned lines | 29,525 (21% reduction) |
 | Sections | 207 |
-| Funding items | 285 (23% with extracted purpose, 3% with recipient) |
-| Total spending | $192,015,988,007 |
+| Funding items | 203 (50% with extracted purpose, 4 recipients) |
+| Total spending | $192B |
 | Legal references | 891 |
-| Deadlines | 94 |
+| Deadlines | 46 (87% with meaningful actions) |
 | Entities | 117 |
+
+**All bills combined:** 3,220 spending items, 1,521 with purposes (40%), 49 recipients, 317 deadlines
 
 Structure: Division A (Continuing Appropriations), Division B (Disaster Relief — Helene/WNC), Division C (Veterans, Foreign Affairs, Cybersecurity), Division D (Commerce, Blockchain, 6G), plus additional divisions for healthcare, energy, education, defense.
 

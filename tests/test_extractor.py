@@ -205,3 +205,69 @@ def test_funding_has_fiscal_years_field():
     facts = extract_facts(text)
     assert len(facts["funding"]) >= 1
     assert "fiscal_years" in facts["funding"][0]
+
+
+# --- New patterns: to provide/make/fund ---
+
+
+def test_purpose_to_provide():
+    """Extracts 'to provide X' purpose pattern."""
+    text = "$2,000,000,000 to provide assistance to producers of livestock for losses incurred."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+    assert "assistance" in purpose.lower()
+
+
+def test_purpose_rejects_junk():
+    """Rejects 'such purpose', 'this section', etc as purposes."""
+    text = "$100,000,000 for such purposes as the Secretary may determine."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    # Should be rejected by junk filter
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose == "unspecified" or "such purpose" not in purpose.lower()
+
+
+def test_purpose_across_newlines():
+    """Purpose extraction works across line breaks in raw bill text."""
+    text = "$30,000,000, for reimbursement for administrative\nand operating expenses available for crop insurance."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+    assert "reimbursement" in purpose.lower()
+
+
+# --- Deadline improvements ---
+
+
+def test_deadline_forward_action():
+    """Deadline action comes from text AFTER 'not later than X days'."""
+    text = "Not later than 60 days after the date of enactment, the Secretary shall submit a spending plan to the Committees on Appropriations."
+    facts = extract_facts(text)
+    assert len(facts["deadlines"]) >= 1
+    dl = facts["deadlines"][0]
+    assert dl["date"] == "60 days"
+    assert "spending plan" in dl["action"].lower() or "submit" in dl["action"].lower()
+
+
+def test_deadline_specific_date():
+    """Deadline with a specific calendar date."""
+    text = "Not later than January 15, 2026, the Administrator shall publish final regulations in the Federal Register."
+    facts = extract_facts(text)
+    assert len(facts["deadlines"]) >= 1
+    dl = facts["deadlines"][0]
+    assert "January 15, 2026" in dl["date"]
+    assert "regulations" in dl["action"].lower() or "publish" in dl["action"].lower()
+
+
+def test_purpose_backward_subheading():
+    """Purpose extracted from uppercase subheading before dollar amount."""
+    text = "\nOPERATIONS AND MAINTENANCE, NAVY\n\n$625,000,000 to remain available until expended."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+    assert "operations" in purpose.lower() or "navy" in purpose.lower()
