@@ -32,9 +32,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 # Database path: data/porkchop.db relative to project root
@@ -237,8 +240,8 @@ def process_bill(req: ProcessRequest):
 
     except ValueError as e:
         return ErrorResponse(error=str(e))
-    except Exception as e:
-        return ErrorResponse(error=f"Processing failed: {str(e)}")
+    except Exception:
+        return ErrorResponse(error="Processing failed. Please try again.")
     finally:
         # Restore original API key
         if original_key is not None:
@@ -249,4 +252,4 @@ def process_bill(req: ProcessRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)

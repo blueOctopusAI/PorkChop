@@ -73,8 +73,7 @@ async function anthropicComplete(
   });
 
   if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Anthropic API error (${resp.status}): ${err}`);
+    throw new Error(`Anthropic API error (${resp.status}). Check your API key.`);
   }
 
   const data = await resp.json();
@@ -102,8 +101,7 @@ async function openaiComplete(
   });
 
   if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`${provider} API error (${resp.status}): ${err}`);
+    throw new Error(`${provider} API error (${resp.status}). Check your API key.`);
   }
 
   const data = await resp.json();

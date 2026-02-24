@@ -109,6 +109,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const VALID_PROVIDERS = ["anthropic", "openai", "xai"];
+    if (!VALID_PROVIDERS.includes(provider)) {
+      return NextResponse.json(
+        { error: "Invalid provider. Must be: anthropic, openai, or xai" },
+        { status: 400 }
+      );
+    }
+
     const bill = getBill(Number(billId));
     if (!bill) {
       return NextResponse.json(
@@ -133,8 +141,10 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json({ answer: response });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Chat failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json(
+      { error: "Chat request failed. Check your API key and try again." },
+      { status: 500 }
+    );
   }
 }
