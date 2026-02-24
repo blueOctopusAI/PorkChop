@@ -1,6 +1,6 @@
 """Tests for regex-based fact extraction."""
 
-from porkchop.extractor import extract_facts, parse_dollar_amount
+from porkchop.extractor import extract_facts, parse_dollar_amount, _clean_purpose
 
 
 def test_extracts_us_code_refs(sample_cleaned_text):
@@ -98,3 +98,110 @@ def test_extracts_fiscal_years(sample_cleaned_text):
     facts = extract_facts(sample_cleaned_text)
     assert len(facts["fiscal_years"]) >= 1
     assert "2024" in facts["fiscal_years"] or "2025" in facts["fiscal_years"]
+
+
+# --- Purpose extraction improvements ---
+
+
+def test_purpose_necessary_expenses():
+    """Extracts 'necessary expenses related to X' pattern."""
+    text = "$30,780,000,000, for necessary expenses related to losses of revenue and increased costs."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+    assert "losses of revenue" in purpose.lower()
+
+
+def test_purpose_carry_out():
+    """Extracts 'to carry out X' pattern."""
+    text = "$3,000,000 to carry out regular testing for the purposes of verifying molasses inspection."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+    assert "testing" in purpose.lower() or "verifying" in purpose.lower()
+
+
+def test_purpose_additional_amount():
+    """Extracts purpose from 'for an additional amount for FY, ... for the X program'."""
+    text = "$5,691,000,000, for an additional amount for fiscal year 2025, to remain available until September 30, 2029, for the Virginia Class Submarine program."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+    assert "virginia class submarine" in purpose.lower()
+
+
+def test_purpose_rejects_fiscal_year_only():
+    """Does not accept 'fiscal year 2025' as a purpose."""
+    assert _clean_purpose("fiscal year 2025") is None
+    assert _clean_purpose("each of fiscal years 2024 and 2025") is None
+
+
+def test_purpose_rejects_short():
+    """Rejects single-word or very short purpose strings."""
+    assert _clean_purpose("flood") is None
+    assert _clean_purpose("budget") is None
+
+
+def test_purpose_made_available():
+    """Extracts purpose from 'shall be made available for' pattern."""
+    text = "$10,000,000,000 shall be made available for the Secretary to make economic assistance available pursuant to section 2102."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    purpose = facts["funding"][0]["purpose"]
+    assert purpose != "unspecified"
+
+
+# --- Recipient extraction ---
+
+
+def test_recipient_transferred_to():
+    """Extracts recipient from 'transferred to' pattern."""
+    text = "$50,000,000 shall be transferred to ''Small Business Administration'' for audits."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    recipient = facts["funding"][0].get("recipient")
+    assert recipient is not None
+    assert "small business" in recipient.lower()
+
+
+def test_recipient_to_department():
+    """Extracts recipient from 'to the Department of X' pattern."""
+    text = "$150,000,000 to the Department of the Treasury, out of which amounts may be transferred."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    recipient = facts["funding"][0].get("recipient")
+    assert recipient is not None
+    assert "treasury" in recipient.lower()
+
+
+# --- Trailing commas on amounts ---
+
+
+def test_amount_strips_trailing_comma():
+    """Dollar amounts with trailing commas are parsed correctly."""
+    text = "$30,780,000,000, to remain available until expended."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    assert facts["funding"][0]["amount_numeric"] == 30_780_000_000
+
+
+# --- Funding items have recipient and fiscal_years fields ---
+
+
+def test_funding_has_recipient_field():
+    """Every funding item has a recipient field (may be None)."""
+    text = "$100,000,000 for disaster relief operations."
+    facts = extract_facts(text)
+    for item in facts["funding"]:
+        assert "recipient" in item
+
+
+def test_funding_has_fiscal_years_field():
+    """Fiscal years are captured from context."""
+    text = "$500,000,000 for fiscal year 2025 operations."
+    facts = extract_facts(text)
+    assert len(facts["funding"]) >= 1
+    assert "fiscal_years" in facts["funding"][0]

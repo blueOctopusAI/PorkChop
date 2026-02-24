@@ -5,6 +5,8 @@ Ported from v0 extract_legislative_facts.py with improvements:
 - Better funding amount parsing (handles millions/billions notation)
 - Improved entity detection
 - Deduplication built in
+- Multi-strategy purpose extraction (forward context, backward context, heading)
+- Recipient extraction (transferred to, Department of, Agency)
 """
 
 import re
@@ -20,12 +22,42 @@ ACT_PATTERN = re.compile(
 
 # --- Funding patterns ---
 DOLLAR_PATTERN = re.compile(
-    r"\$\s*(?P<amount>[\d,]+(?:\.\d+)?)\s*(?P<scale>thousand|million|billion|trillion)?",
+    r"\$\s*(?P<amount>[\d,]+(?:\.\d+)?),?\s*(?P<scale>thousand|million|billion|trillion)?",
     re.IGNORECASE,
 )
 APPROPRIATION_PATTERN = re.compile(
-    r"\$\s*[\d,]+(?:\.\d+)?\s*(?:thousand|million|billion|trillion)?"
-    r"(?P<context>[^.;]{0,200})",
+    r"\$\s*[\d,]+(?:\.\d+)?,?\s*(?:thousand|million|billion|trillion)?"
+    r"(?P<context>[^.;]{0,300})",
+    re.IGNORECASE,
+)
+
+# --- Purpose extraction patterns (ordered by specificity) ---
+PURPOSE_PATTERNS = [
+    # "for necessary expenses related to X"
+    re.compile(r"for\s+necessary\s+expenses\s+(?:related\s+to\s+)?(.{10,150}?)(?:,\s*(?:to|of|and)|;|\.|$)", re.IGNORECASE),
+    # "for an additional amount for FY XXXX, ... for the X program"
+    re.compile(r"for\s+an\s+additional\s+amount\s+for\s+fiscal\s+year\s+\d{4}.{0,100}?for\s+(?:the\s+)?(.{10,150}?)(?::|;|\.|$)", re.IGNORECASE),
+    # "shall be made available for the Secretary to X"
+    re.compile(r"shall\s+be\s+(?:made\s+)?available\s+(?:for\s+)?(?:the\s+)?(?:Secretary\s+to\s+)?(.{10,150}?)(?::|;|\.|$)", re.IGNORECASE),
+    # "to carry out X" / "to conduct X"
+    re.compile(r"(?:to\s+carry\s+out|to\s+conduct)\s+(.{10,150}?)(?::|;|\.|$)", re.IGNORECASE),
+    # "for X" — generic, but skip fiscal year / periods / additional amount as purpose
+    re.compile(r"for\s+(?!(?:fiscal\s+year|each\s+of\s+fiscal|the\s+period\s+beginning|an\s+additional\s+amount))(.{10,150}?)(?:,\s*(?:to|of|and)|;|\.|$)", re.IGNORECASE),
+]
+
+# --- Recipient patterns ---
+RECIPIENT_PATTERNS = [
+    # "transferred to 'Department of X—Y'" or "transferred to ''X''"
+    re.compile(r"transferred\s+to\s+['\u2018\u2019\u201c\u201d]{0,2}([^''\n]{5,80}?)['\u2018\u2019\u201c\u201d]{0,2}(?:\s+for|\s*$)", re.IGNORECASE),
+    # "to the Department of X"
+    re.compile(r"to\s+the\s+(Department\s+of\s+[A-Z][a-z]+(?:\s+(?:and\s+)?[A-Z][a-z]+){0,3})", re.IGNORECASE),
+    # "to the X Administration/Agency/Commission"
+    re.compile(r"to\s+(?:the\s+)?((?:[A-Z][a-z]+\s+){1,4}(?:Administration|Agency|Commission|Authority))", re.IGNORECASE),
+]
+
+# --- Section heading pattern (for fallback context) ---
+HEADING_PATTERN = re.compile(
+    r"(?:TITLE|DIVISION|CHAPTER)\s+[IVXLCDM\dA-Z]+\s*[—\-]\s*(.+?)(?:\n|$)",
     re.IGNORECASE,
 )
 
@@ -68,6 +100,10 @@ SCALE_MULTIPLIERS = {
     "trillion": 1_000_000_000_000,
 }
 
+# Noise patterns that shouldn't be accepted as purpose
+_FISCAL_YEAR_ONLY = re.compile(r"^(?:fiscal\s+year\s+\d{4}|each\s+of\s+fiscal\s+years)", re.IGNORECASE)
+_PERIOD_BEGINNING = re.compile(r"^the\s+period\s+beginning", re.IGNORECASE)
+
 
 def parse_dollar_amount(amount_str: str, scale: str | None = None) -> float:
     """Parse a dollar amount string to a float."""
@@ -79,6 +115,76 @@ def parse_dollar_amount(amount_str: str, scale: str | None = None) -> float:
     if scale:
         value *= SCALE_MULTIPLIERS.get(scale.lower(), 1)
     return value
+
+
+def _clean_purpose(purpose: str | None) -> str | None:
+    """Clean and validate an extracted purpose string."""
+    if not purpose:
+        return None
+    purpose = purpose.strip().rstrip(",;:")
+    # Remove leading "the" if it makes the purpose clearer
+    purpose = re.sub(r"^the\s+", "", purpose, flags=re.IGNORECASE)
+    # Reject if too short (single word or less)
+    if len(purpose) < 10:
+        return None
+    # Reject if it's just a fiscal year reference
+    if _FISCAL_YEAR_ONLY.match(purpose):
+        return None
+    if _PERIOD_BEGINNING.match(purpose):
+        return None
+    # Clean up newlines from source text
+    purpose = re.sub(r"\s+", " ", purpose)
+    return purpose
+
+
+def _extract_purpose(context: str) -> str | None:
+    """Try multiple patterns to extract a meaningful purpose from context."""
+    for pattern in PURPOSE_PATTERNS:
+        m = pattern.search(context)
+        if m:
+            purpose = _clean_purpose(m.group(1))
+            if purpose:
+                return purpose
+    return None
+
+
+def _extract_purpose_backward(text: str, match_start: int) -> str | None:
+    """Look backward from the dollar amount for purpose context.
+
+    Useful when the purpose precedes the amount, e.g.:
+    "for the Virginia Class Submarine program ... $5,691,000,000"
+    or when a section heading provides context.
+    """
+    start = max(0, match_start - 300)
+    backward = text[start:match_start]
+
+    # Look for heading context
+    heading_m = HEADING_PATTERN.search(backward)
+    if heading_m:
+        heading = heading_m.group(1).strip()
+        if len(heading) > 10:
+            return _clean_purpose(heading)
+
+    return None
+
+
+def _extract_recipient(context: str) -> str | None:
+    """Extract the receiving entity from spending context."""
+    for pattern in RECIPIENT_PATTERNS:
+        m = pattern.search(context)
+        if m:
+            recipient = m.group(1).strip().rstrip(",;:")
+            # Clean up quotes and formatting
+            recipient = re.sub(r"['\u2018\u2019\u201c\u201d]", "", recipient)
+            recipient = re.sub(r"\s+", " ", recipient)
+            # Remove em-dash suffixes for clean entity names
+            if "\u2014" in recipient:
+                recipient = recipient.split("\u2014")[0].strip()
+            if "—" in recipient:
+                recipient = recipient.split("—")[0].strip()
+            if len(recipient) > 5:
+                return recipient
+    return None
 
 
 def extract_facts(text: str) -> dict[str, Any]:
@@ -125,9 +231,13 @@ def extract_facts(text: str) -> dict[str, Any]:
         amount_numeric = parse_dollar_amount(amount_str, scale)
         context = m.group("context").strip()
 
-        # Try to extract purpose from context
-        purpose_match = re.search(r"for\s+(.{5,100}?)(?:,|;|\.|$)", context, re.IGNORECASE)
-        purpose = purpose_match.group(1).strip() if purpose_match else None
+        # Multi-strategy purpose extraction
+        purpose = _extract_purpose(context)
+        if not purpose:
+            purpose = _extract_purpose_backward(text, m.start())
+
+        # Extract recipient from context
+        recipient = _extract_recipient(context)
 
         # Check availability
         avail_match = re.search(
@@ -138,6 +248,11 @@ def extract_facts(text: str) -> dict[str, Any]:
         )
         availability = avail_match.group(1) if avail_match else None
 
+        # Extract fiscal years from context
+        fy_matches = FISCAL_YEAR_PATTERN.findall(context)
+        fiscal_years = ", ".join(sorted(set(fy_matches))) if fy_matches else None
+
+        # Clean display amount — strip trailing comma
         display = f"${amount_str}"
         if scale:
             display += f" {scale}"
@@ -147,7 +262,9 @@ def extract_facts(text: str) -> dict[str, Any]:
                 "amount": display,
                 "amount_numeric": amount_numeric,
                 "purpose": purpose or "unspecified",
+                "recipient": recipient,
                 "availability": availability,
+                "fiscal_years": fiscal_years,
                 "source_text": m.group(0)[:300],
             }
         )

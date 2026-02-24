@@ -160,7 +160,9 @@ def process(ctx, file, strategy, max_chars, output, bill_id):
                     section_id=section_id,
                     amount_numeric=item.get("amount_numeric", 0),
                     purpose=item.get("purpose"),
+                    recipient=item.get("recipient"),
                     availability=item.get("availability"),
+                    fiscal_years=item.get("fiscal_years"),
                     source_text=item.get("source_text"),
                 )
 
