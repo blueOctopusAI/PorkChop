@@ -15,7 +15,7 @@ Built for a real use case: Tim's brother is chief of staff for Congressman Thoma
 - **Analyzes** sections using Claude for semantic understanding and plain English summaries
 - **Compares** bill versions (what spending was added/removed between drafts?)
 - **Scores** spending items 0-100 for pork likelihood (earmarks, geographic specificity, unrelatedness)
-- **Serves** a web frontend with search, spending detail, version comparison, and JSON API
+- **Serves** a Next.js web frontend with dashboard, spending detail, version comparison, search, REST API, and MCP server for LLM access
 
 ## Quick Start
 
@@ -36,8 +36,8 @@ PYTHONPATH=src python -m porkchop.cli analyze 1
 # Score spending for pork
 PYTHONPATH=src python -m porkchop.cli score 1
 
-# Start web server
-PYTHONPATH=src python -m porkchop.cli web
+# Start Next.js web frontend
+cd web && npm install && npm run dev
 ```
 
 ## CLI Commands
@@ -55,7 +55,7 @@ PYTHONPATH=src python -m porkchop.cli web
 | `porkchop info <bill-id>` | Show stored bill details |
 | `porkchop search <query>` | Search analyzed bills |
 | `porkchop stats` | Database statistics |
-| `porkchop web` | Start Flask web server |
+| `porkchop web` | Start legacy Flask server |
 
 ## Real Data
 
@@ -68,9 +68,23 @@ Processed H.R. 10515 — "Further Continuing Appropriations and Disaster Relief 
 - 51 entities
 - 102 tests passing
 
+## Web Frontend
+
+The `web/` directory contains the Next.js frontend:
+
+- **Marketing pages** — Landing, How It Works, About
+- **App pages** — Dashboard, bill detail, spending tables, pork analysis, version comparison, search
+- **REST API** — 13 endpoints under `/api/v1/` (bills, spending, pork, deadlines, entities, references, sections, versions, summaries, comparison, search, stats)
+- **MCP server** — 12 tools for LLM access to bill data (`web/mcp/`)
+
+```bash
+cd web && npm install && npm run dev
+```
+
 ## Stack
 
-Python 3.10+ | Click CLI | Flask + Jinja2 | SQLite | Claude API (Haiku + Sonnet) | Congress.gov API | GovInfo API | Rich (terminal output)
+**Backend:** Python 3.10+ | Click CLI | SQLite | Claude API (Haiku + Sonnet) | Congress.gov API | GovInfo API
+**Frontend:** Next.js 16 | TypeScript | Tailwind v4 | better-sqlite3
 
 ## Environment Variables
 

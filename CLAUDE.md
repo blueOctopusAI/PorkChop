@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Legislative bill processor — fetches bills from Congress.gov, cleans GPO formatting, chunks by structure, extracts facts (regex + Claude), stores in SQLite, serves via Flask web UI. Scores spending items for pork.
+Legislative bill processor — fetches bills from Congress.gov, cleans GPO formatting, chunks by structure, extracts facts (regex + Claude), stores in SQLite. Next.js web frontend with REST API and MCP server. Scores spending items for pork.
 
 **Name origin:** "PorkChop" — chopping up pork barrel spending bills into digestible pieces.
 
@@ -12,41 +12,33 @@ Legislative bill processor — fetches bills from Congress.gov, cleans GPO forma
 
 Built Dec 2024 for a real use case: Tim's brother is chief of staff for Congressman Thomas Massie. Staff get 1,500-page bills dropped on their desk the night before a vote with no time to read them. PorkChop was built to solve that problem.
 
-Originally a regex-only prototype (Dec 2024, pre-Claude Code). Modernized Feb 2026 into a full product: proper package structure, Click CLI, SQLite storage, Congress.gov/GovInfo API ingestion, Claude-powered semantic extraction, Flask web frontend, version comparison, and pork scoring.
+Originally a regex-only prototype (Dec 2024, pre-Claude Code). Modernized Feb 2026 into a full product: proper package structure, Click CLI, SQLite storage, Congress.gov/GovInfo API ingestion, Claude-powered semantic extraction, Next.js web frontend with REST API and MCP server, version comparison, and pork scoring.
 
 ## Current State
 
 - **Version:** 1.0.0
 - **Tests:** 102 passing (cleaner, chunker, extractor, database, ingestion, comparator, scorer, web)
 - **Bill processed:** H.R. 10515 — 37,261 raw lines → 207 sections, 311 funding items ($192B), 1,554 legal refs, 94 deadlines, 51 entities
-- **Stack:** Python 3.10+, Click, Flask, SQLite, Claude API (Haiku + Sonnet), httpx, Rich
+- **Backend stack:** Python 3.10+, Click, SQLite, Claude API (Haiku + Sonnet), httpx, Rich
+- **Frontend stack:** Next.js 16, TypeScript, Tailwind v4, better-sqlite3, MCP SDK
 - **Dependencies:** click, flask, anthropic, httpx, rich (dev: pytest, pytest-cov)
 
 ## Architecture
 
 ```
-User → CLI (Click) or Web (Flask)
-              │
-    ┌─────────┼─────────────────────────────┐
-    │         │                              │
-    ▼         ▼                              ▼
-Ingestion   Processing                    Web Frontend
-(API fetch)  (clean → chunk → extract)    (Flask + Jinja2)
-    │         │                              │
-    │    ┌────┼────────┐                     │
-    │    │    │        │                     │
-    │    ▼    ▼        ▼                     │
-    │  Regex  Claude   Comparator            │
-    │  extract analyze  (version diff)       │
-    │    │    │        │                     │
-    └────┴────┴────────┴─────────────────────┘
-                   │
-                   ▼
-              SQLite DB
-         (bills, sections, spending,
-          refs, deadlines, entities,
-          summaries, pork_scores,
-          comparisons)
+Python CLI (writes)          Next.js Web (reads)        MCP Server (reads)
+  │                              │                          │
+  ▼                              ▼                          ▼
+Ingestion → Processing      App Pages + REST API      12 LLM tools
+(fetch)     (clean/chunk/   (dashboard, bills,        (stdio transport)
+             extract/        spending, pork,
+             analyze/        compare, search)
+             compare/
+             score)
+  │                              │                          │
+  └──────────────────────────────┼──────────────────────────┘
+                                 │
+                            SQLite DB
 ```
 
 ## File Map
@@ -92,6 +84,16 @@ PorkChop/
 │   ├── test_comparator.py        # 8 tests
 │   ├── test_scorer.py            # 9 tests
 │   └── test_web.py               # 16 tests
+├── web/                          # Next.js frontend
+│   ├── src/
+│   │   ├── app/                  # App Router pages + API routes
+│   │   │   ├── (marketing)/      # Landing, How It Works, About
+│   │   │   ├── (app)/            # Dashboard, bills, spending, pork, compare, search
+│   │   │   └── api/v1/           # 13 REST API endpoints
+│   │   ├── components/layout/    # AppSidebar, MobileNav, MarketingNav, MarketingFooter
+│   │   └── lib/                  # db.ts, types.ts, format.ts, pork-colors.ts, api.ts, config.ts
+│   └── mcp/                      # MCP server (12 tools, stdio transport)
+│       └── src/index.ts
 └── data/                         # Runtime (gitignored)
     └── porkchop.db               # SQLite database
 ```
@@ -111,8 +113,8 @@ PYTHONPATH=src python -m porkchop.cli analyze 1
 # Pork scoring
 PYTHONPATH=src python -m porkchop.cli score 1
 
-# Web server
-PYTHONPATH=src python -m porkchop.cli web
+# Next.js web frontend
+cd web && npm install && npm run dev
 
 # Tests
 PYTHONPATH=src pytest tests/ -v

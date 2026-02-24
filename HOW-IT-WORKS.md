@@ -11,41 +11,21 @@ Congressional staff receive massive omnibus bills hours before votes. The "Furth
 ## System Architecture
 
 ```
-                         ┌──────────────┐
-                         │   User       │
-                         │  CLI or Web  │
-                         └──────┬───────┘
-                                │
-              ┌─────────────────┼─────────────────┐
-              │                 │                  │
-    ┌─────────▼────────┐ ┌─────▼──────┐ ┌────────▼────────┐
-    │   Ingestion       │ │ Processing │ │  Web Frontend    │
-    │                   │ │            │ │                  │
-    │ Congress.gov API  │ │ clean      │ │ Flask + Jinja2   │
-    │ GovInfo API       │ │ chunk      │ │ 5 pages          │
-    │ Local file import │ │ extract    │ │ 5 API endpoints  │
-    │                   │ │ analyze    │ │ Dark theme       │
-    │ Bill ID parser:   │ │ compare    │ │ Pork colors      │
-    │ HR-10515          │ │ score      │ │                  │
-    │ 118-hr-10515      │ │            │ │                  │
-    └─────────┬────────┘ └─────┬──────┘ └────────┬────────┘
-              │                │                  │
-              └────────────────┼──────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │     SQLite DB       │
-                    │                     │
-                    │ bills               │
-                    │ bill_versions       │
-                    │ sections            │
-                    │ spending_items      │
-                    │ legal_references    │
-                    │ deadlines           │
-                    │ entities            │
-                    │ summaries           │
-                    │ pork_scores         │
-                    │ comparisons         │
-                    └─────────────────────┘
+Python CLI (writes)             Next.js Web (reads)           MCP Server (reads)
+  │                                │                              │
+  ▼                                ▼                              ▼
+Ingestion → Processing         App Pages + REST API           12 LLM tools
+(Congress.gov API,             (marketing, dashboard,         (stdio transport)
+ GovInfo API,                   bills, spending, pork,
+ local file import)             compare, search)
+  │                                │                              │
+  │  clean → chunk → extract       │  13 API endpoints            │
+  │  analyze → compare → score     │  under /api/v1/              │
+  │                                │                              │
+  └────────────────────────────────┼──────────────────────────────┘
+                                   │
+                              SQLite DB
+                         (10 tables, WAL mode)
 ```
 
 ## Pipeline Stages
@@ -131,19 +111,27 @@ Scores spending items 0-100 for pork likelihood:
 - CAGW Pig Book criteria evaluation
 - Blended score: 30% heuristic + 70% AI
 
-### Stage 7: Web Frontend (`web/app.py`)
+### Stage 7: Web Frontend (`web/`)
 
-Flask app with dark theme and pork-score color coding:
+Next.js 16 app with dark theme and pork-score color coding. Three interfaces:
+
+**Marketing pages** (`(marketing)/`): Landing page, How It Works, About — explain what PorkChop is.
+
+**App pages** (`(app)/`):
 
 | Page | What |
 |------|------|
-| `/` | Dashboard — recent bills, aggregate stats |
-| `/bill/<id>` | Bill detail — summary, spending, deadlines, refs, entities, pork |
-| `/bill/<id>/spending` | Full spending table with pork scores |
-| `/bill/<id>/compare` | Version comparison picker + diff view |
+| `/dashboard` | Recent bills, aggregate stats |
+| `/bills` | Bill list with sorting |
+| `/bills/:id` | Bill detail — summary, spending, deadlines, refs, entities, pork, external links to Congress.gov/GovInfo |
+| `/bills/:id/spending` | Full spending table with expandable source text and pork scores |
+| `/bills/:id/pork` | Pork analysis — distribution, scored items |
+| `/bills/:id/compare` | Version comparison picker + diff view |
 | `/search` | Full-text search across bills |
 
-JSON API mirrors all pages at `/api/*`.
+**REST API** (`/api/v1/`): 13 JSON endpoints mirroring all data access.
+
+**MCP server** (`web/mcp/`): 12 tools for LLM access via stdio transport.
 
 ## Database Schema
 
