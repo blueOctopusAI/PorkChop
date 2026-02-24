@@ -55,7 +55,7 @@ cd web && npm install && npm run dev
 | `porkchop info <bill-id>` | Show stored bill details |
 | `porkchop search <query>` | Search analyzed bills |
 | `porkchop stats` | Database statistics |
-| `porkchop web` | Start legacy Flask server |
+
 
 ## Real Data
 

@@ -11,7 +11,6 @@ Commands:
   porkchop search <query>          Search analyzed bills
   porkchop info <bill-id>          Show bill details
   porkchop stats                   Database statistics
-  porkchop web                     Start web server
   porkchop import <file> <bill-id> Import local file
 """
 
@@ -488,21 +487,6 @@ def stats(ctx):
         f"Total: ${s['total_spending']:,.0f} | Scored: {s['items_scored']}",
         title="PorkChop Database",
     ))
-
-
-@cli.command()
-@click.option("--host", default="127.0.0.1", help="Host to bind to")
-@click.option("--port", default=5000, help="Port to bind to")
-@click.option("--debug/--no-debug", default=False)
-@click.pass_context
-def web(ctx, host, port, debug):
-    """Start the PorkChop web server."""
-    from .web.app import create_app
-
-    db_path = ctx.obj.get("db_path")
-    app = create_app(db_path)
-    console.print(f"[green]PorkChop web server starting at http://{host}:{port}[/green]")
-    app.run(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":

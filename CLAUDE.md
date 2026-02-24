@@ -62,18 +62,7 @@ PorkChop/
 │   ├── analyzer.py               # Claude-powered semantic analysis
 │   ├── comparator.py             # Bill version diff + semantic comparison
 │   ├── scorer.py                 # Pork scoring (heuristic + AI)
-│   └── web/
-│       ├── __init__.py
-│       ├── app.py                # Flask — 5 pages + 5 API endpoints
-│       ├── templates/            # 6 Jinja2 templates
-│       │   ├── base.html
-│       │   ├── index.html
-│       │   ├── bill.html
-│       │   ├── spending.html
-│       │   ├── compare.html
-│       │   └── search.html
-│       └── static/
-│           └── style.css         # Dark theme with pork-score colors
+│   └── __init__.py               # (Flask web removed — replaced by Next.js)
 ├── tests/                        # 102 tests
 │   ├── conftest.py               # Fixtures (sample text, temp DB)
 │   ├── test_cleaner.py           # 16 tests

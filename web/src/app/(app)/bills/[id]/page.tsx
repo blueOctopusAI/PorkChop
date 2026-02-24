@@ -24,6 +24,7 @@ import {
 } from "@/lib/format";
 import { ExternalLink } from "lucide-react";
 import { getPorkBadgeClass, getPorkLabel, getPorkColor } from "@/lib/pork-colors";
+import BillChatWrapper from "./BillChatWrapper";
 
 export async function generateMetadata({
   params,
@@ -380,6 +381,8 @@ export default async function BillDetailPage({
       <div className="text-sm text-text-dim">
         {sections.length} sections analyzed
       </div>
+
+      <BillChatWrapper billId={billId} />
     </div>
   );
 }

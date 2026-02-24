@@ -3,11 +3,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Search } from "lucide-react";
+import { LayoutDashboard, FileText, Search, PlusCircle } from "lucide-react";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard },
   { href: "/bills", icon: FileText },
+  { href: "/process", icon: PlusCircle },
   { href: "/search", icon: Search },
 ];
 
