@@ -28,6 +28,9 @@ code/chunks/
 code/json_chunks/
 code/output/
 
+# Database (runtime data, reproducible)
+data/
+
 # Credentials
 *.pem
 *.key

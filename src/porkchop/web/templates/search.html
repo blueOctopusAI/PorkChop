@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% endblock %}
+
+{% block content %}
+<section class="search-page">
+    <h1>Search Bills</h1>
+    <form method="get" class="search-form">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search by title, keyword, or subject..." autofocus>
+        <button type="submit" class="btn">Search</button>
+    </form>
+
+    {% if query %}
+    <p class="results-count">{{ results|length }} result{{ 's' if results|length != 1 else '' }} for "{{ query }}"</p>
+
+    {% if results %}
+    <table>
+        <thead>
+            <tr>
+                <th>Bill</th>
+                <th>Title</th>
+                <th>Congress</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td><a href="/bill/{{ r.id }}">{{ r.bill_type | upper }} {{ r.bill_number }}</a></td>
+                <td>{{ r.title[:80] }}{% if r.title|length > 80 %}...{% endif %}</td>
+                <td>{{ r.congress }}th</td>
+                <td>{{ r.status[:50] if r.status else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">No bills match your search.</p>
+    {% endif %}
+    {% endif %}
+</section>
+{% endblock %}

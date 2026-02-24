@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Compare — {{ bill.bill_type | upper }} {{ bill.bill_number }}{% endblock %}
+
+{% block content %}
+<section class="compare">
+    <h1>Version Comparison</h1>
+    <h2><a href="/bill/{{ bill.id }}">{{ bill.bill_type | upper }} {{ bill.bill_number }}</a> — {{ bill.title[:80] }}</h2>
+
+    <form method="get" class="compare-form">
+        <label>From:
+            <select name="from">
+                <option value="">Select version</option>
+                {% for v in versions %}
+                <option value="{{ v.id }}" {% if from_id == v.id %}selected{% endif %}>
+                    {{ v.version_code }} — {{ v.version_name or 'Unknown' }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>To:
+            <select name="to">
+                <option value="">Select version</option>
+                {% for v in versions %}
+                <option value="{{ v.id }}" {% if to_id == v.id %}selected{% endif %}>
+                    {{ v.version_code }} — {{ v.version_name or 'Unknown' }}
+                </option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn">Compare</button>
+    </form>
+
+    {% if comparison %}
+    <div class="comparison-results">
+        <div class="stat-cards">
+            <div class="stat-card">
+                <span class="stat-number" style="color: #22c55e">+{{ comparison.additions_count }}</span>
+                <span class="stat-label">Lines Added</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-number" style="color: #ef4444">-{{ comparison.removals_count }}</span>
+                <span class="stat-label">Lines Removed</span>
+            </div>
+        </div>
+
+        {% if comparison.spending_diff %}
+        {% if comparison.spending_diff.added %}
+        <h3>Spending Added</h3>
+        <ul>
+            {% for s in comparison.spending_diff.added %}
+            <li class="diff-add">{{ s.amount }} — {{ s.context[:100] }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if comparison.spending_diff.removed %}
+        <h3>Spending Removed</h3>
+        <ul>
+            {% for s in comparison.spending_diff.removed %}
+            <li class="diff-remove">{{ s.amount }} — {{ s.context[:100] }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endif %}
+
+        {% if comparison.changes %}
+        <h3>Section Changes</h3>
+        {% for change in comparison.changes %}
+        <div class="change-card">
+            <h4>{{ change.section }}</h4>
+            <p>{{ change.summary }}</p>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% elif from_id and to_id %}
+    <p class="empty-state">No comparison data found. Run the CLI to generate: <code>porkchop compare {{ bill.id }} --from {{ from_id }} --to {{ to_id }}</code></p>
+    {% endif %}
+</section>
+{% endblock %}

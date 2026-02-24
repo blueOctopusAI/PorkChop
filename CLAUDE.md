@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Legislative bill processor — ingests raw congressional bill text, cleans formatting artifacts, chunks by structure or size, extracts structured facts (funding, deadlines, US Code references, duties, entities), and reconstructs into queryable JSON.
+Legislative bill processor — fetches bills from Congress.gov, cleans GPO formatting, chunks by structure, extracts facts (regex + Claude), stores in SQLite, serves via Flask web UI. Scores spending items for pork.
 
 **Name origin:** "PorkChop" — chopping up pork barrel spending bills into digestible pieces.
 
@@ -12,113 +12,129 @@ Legislative bill processor — ingests raw congressional bill text, cleans forma
 
 Built Dec 2024 for a real use case: Tim's brother is chief of staff for Congressman Thomas Massie. Staff get 1,500-page bills dropped on their desk the night before a vote with no time to read them. PorkChop was built to solve that problem.
 
+Originally a regex-only prototype (Dec 2024, pre-Claude Code). Modernized Feb 2026 into a full product: proper package structure, Click CLI, SQLite storage, Congress.gov/GovInfo API ingestion, Claude-powered semantic extraction, Flask web frontend, version comparison, and pork scoring.
+
 ## Current State
 
-- **Phase:** v0 prototype (Dec 2024, pre-Claude Code era)
-- **Bill processed:** "Further Continuing Appropriations and Disaster Relief Supplemental Appropriations Act, 2025" (H.R. 10515) — includes Tropical Storm Helene disaster relief (relevant to WNC)
-- **Scale:** 37,261 raw lines → 29,525 cleaned lines → chunked → structured JSON
-- **Extraction:** Regex-only (no LLM). Catches US Code refs, Public Laws, dollar amounts, dates, deadlines, duties, entities.
-- **Stack:** Pure Python 3.6+, zero dependencies (stdlib only)
-- **Tests:** One validation script (`chunk_test.py`) — checks JSON structure and data presence
+- **Version:** 1.0.0
+- **Tests:** 102 passing (cleaner, chunker, extractor, database, ingestion, comparator, scorer, web)
+- **Bill processed:** H.R. 10515 — 37,261 raw lines → 207 sections, 311 funding items ($192B), 1,554 legal refs, 94 deadlines, 51 entities
+- **Stack:** Python 3.10+, Click, Flask, SQLite, Claude API (Haiku + Sonnet), httpx, Rich
+- **Dependencies:** click, flask, anthropic, httpx, rich (dev: pytest, pytest-cov)
 
 ## Architecture
 
 ```
-raw_input.txt (congressional formatting, VerDate headers, XML refs, page numbers)
-    │
-    ▼
-cleanText.py — 3-phase regex cleaning
-    │  Phase 1: Remove extraneous lines (VerDate, Jkt, XML refs, timestamps, page nums)
-    │  Phase 2: Strip line numbers, fix embedded-number-in-word OCR artifacts
-    │  Phase 3: Normalize whitespace
-    │
-    ▼
-cleaned_output.txt (reader-friendly bill text, 29K lines)
-    │
-    ▼
-chunk_legislation.py — Split into processable pieces
-    │  Strategy 1: Size-based (20K char chunks)
-    │  Strategy 2: Structure-based (split on DIVISION/TITLE markers)
-    │
-    ▼
-chunks/ (numbered .txt files)
-    │
-    ▼
-extract_legislative_facts.py — Regex extraction per chunk
-    │  US Code references, Public Laws, funding ($), dates, deadlines,
-    │  duties (who shall/may/must do what), programs/entities
-    │
-    ▼
-json_chunks/ (structured JSON per chunk)
-    │
-    ▼
-legislative_processor.py — Orchestrator + reconstructor
-    │  Interactive menu CLI, combines chunks, outputs final JSON + text
-    │
-    ▼
-output/ (combined_document.json + reconstructed_document.txt)
+User → CLI (Click) or Web (Flask)
+              │
+    ┌─────────┼─────────────────────────────┐
+    │         │                              │
+    ▼         ▼                              ▼
+Ingestion   Processing                    Web Frontend
+(API fetch)  (clean → chunk → extract)    (Flask + Jinja2)
+    │         │                              │
+    │    ┌────┼────────┐                     │
+    │    │    │        │                     │
+    │    ▼    ▼        ▼                     │
+    │  Regex  Claude   Comparator            │
+    │  extract analyze  (version diff)       │
+    │    │    │        │                     │
+    └────┴────┴────────┴─────────────────────┘
+                   │
+                   ▼
+              SQLite DB
+         (bills, sections, spending,
+          refs, deadlines, entities,
+          summaries, pork_scores,
+          comparisons)
 ```
 
 ## File Map
 
 ```
 PorkChop/
-├── README.md                          # Project overview
-├── CLAUDE.md                          # This file
-├── porkchop_by_blueOctopusAI.txt      # Cleaned bill output (1.5MB, 29K lines)
-├── porkchop_logo.jpg                  # Logo (generated via Grok)
-└── code/
-    ├── README.md                      # Code-level docs
-    ├── config.json                    # Pipeline configuration
-    ├── raw_input.txt                  # Original bill text (2MB, 37K lines)
-    ├── cleaned_output.txt             # After cleanText.py (1.5MB, 29K lines)
-    ├── cleanText.py                   # Phase 1: Text cleaning (3 regex phases)
-    ├── chunk_legislation.py           # Phase 2: Chunking (size or structure)
-    ├── extract_legislative_facts.py   # Phase 3: Fact extraction (regex)
-    ├── combine_chunks.py              # Simple JSON array combiner
-    ├── chunk_test.py                  # Validation: checks JSON chunks for data
-    ├── legislative_processor.py       # Orchestrator: interactive menu CLI
-    ├── bill.txt                       # Alternate bill text (2MB)
-    ├── chunks/                        # Generated: text chunks
-    ├── json_chunks/                   # Generated: JSON per chunk
-    └── output/                        # Generated: final combined output
+├── README.md                     # Project overview + quick start
+├── CLAUDE.md                     # This file — Claude Code context
+├── HOW-IT-WORKS.md               # Technical deep dive
+├── PDR.md                        # Product Design Review (proposal → implemented)
+├── pyproject.toml                # Python packaging, entry point: porkchop
+├── porkchop_logo.jpg             # Logo (generated via Grok)
+├── src/porkchop/                 # Source package
+│   ├── __init__.py               # Version (1.0.0)
+│   ├── cli.py                    # Click CLI — 11 commands
+│   ├── cleaner.py                # Text cleaning (3-phase regex)
+│   ├── chunker.py                # Chunking (size + structure strategies)
+│   ├── extractor.py              # Regex fact extraction
+│   ├── database.py               # SQLite — 10 tables, CRUD, stats
+│   ├── ingestion.py              # Congress.gov + GovInfo API clients
+│   ├── analyzer.py               # Claude-powered semantic analysis
+│   ├── comparator.py             # Bill version diff + semantic comparison
+│   ├── scorer.py                 # Pork scoring (heuristic + AI)
+│   └── web/
+│       ├── __init__.py
+│       ├── app.py                # Flask — 5 pages + 5 API endpoints
+│       ├── templates/            # 6 Jinja2 templates
+│       │   ├── base.html
+│       │   ├── index.html
+│       │   ├── bill.html
+│       │   ├── spending.html
+│       │   ├── compare.html
+│       │   └── search.html
+│       └── static/
+│           └── style.css         # Dark theme with pork-score colors
+├── tests/                        # 102 tests
+│   ├── conftest.py               # Fixtures (sample text, temp DB)
+│   ├── test_cleaner.py           # 16 tests
+│   ├── test_chunker.py           # 11 tests
+│   ├── test_extractor.py         # 15 tests
+│   ├── test_database.py          # 18 tests
+│   ├── test_ingestion.py         # 9 tests
+│   ├── test_comparator.py        # 8 tests
+│   ├── test_scorer.py            # 9 tests
+│   └── test_web.py               # 16 tests
+└── data/                         # Runtime (gitignored)
+    └── porkchop.db               # SQLite database
 ```
 
-## Running the Pipeline
+## Running
 
 ```bash
-cd code/
-python legislative_processor.py
-# Interactive menu — select option 1 to run all steps
+# Full pipeline on a local file
+PYTHONPATH=src python -m porkchop.cli process <bill-text-file> --bill-id HR-10515
+
+# Fetch from Congress.gov (needs CONGRESS_API_KEY)
+PYTHONPATH=src python -m porkchop.cli fetch HR-10515 --text
+
+# Claude analysis (needs ANTHROPIC_API_KEY)
+PYTHONPATH=src python -m porkchop.cli analyze 1
+
+# Pork scoring
+PYTHONPATH=src python -m porkchop.cli score 1
+
+# Web server
+PYTHONPATH=src python -m porkchop.cli web
+
+# Tests
+PYTHONPATH=src pytest tests/ -v
 ```
 
-Or run steps individually:
-```bash
-python cleanText.py              # Clean raw text
-python chunk_legislation.py      # Chunk cleaned text
-python extract_legislative_facts.py  # Extract facts from chunks
-python combine_chunks.py         # Combine JSON chunks
-python chunk_test.py             # Validate JSON output
-```
+## Key Design Decisions
 
-## Known Limitations
-
-1. **Regex extraction misses semantic meaning** — catches "The Secretary shall" but doesn't understand *why* or the broader context
-2. **No bill source automation** — requires manual text paste into raw_input.txt
-3. **Interactive CLI** — uses `input()` prompts, can't be scripted/automated
-4. **No web frontend** — output is JSON files on disk
-5. **Single bill only** — no comparison between bill versions or across bills
-6. **JSON noted as "broken"** in original README — extraction quality varies by section
-7. **Embedded number cleanup is aggressive** — the regex `([A-Za-z])(\d+)\s+([A-Za-z])` could mangle legitimate text like section references
+- **Regex retained alongside Claude** — regex is free, fast, and reliable for structured data (dollar amounts, US Code refs). Claude adds semantic understanding. Both coexist.
+- **SQLite over Postgres** — portable, no server, proven at this scale. Same pattern as bluePages.
+- **Click over argparse** — consistent with bluePages, better UX, subcommand-friendly.
+- **Haiku for bulk, Sonnet for summaries** — cost optimization. ~$0.50-2.00 per bill with Haiku; Sonnet only for the bill-level synthesis.
+- **Structure-based chunking default** — preserves legislative intent. A chunk = a logical legislative unit. Size-based available when structure markers are absent.
 
 ## Sensitive Data
 
 - Bill text is public record (government documents, no copyright)
 - No PII, API keys, or credentials in this repo
-- Logo generated by Grok (xAI) — watermark visible
+- API keys loaded from environment variables only
+- `data/` directory is gitignored (runtime database)
 
 ## Related Projects
 
 - **intelligence-hub** — Same architecture pattern (messy input → chunk → extract → structure)
-- **bluePages** — Same pattern (crawl → parse → score → report)
+- **bluePages** — Same pattern (crawl → parse → score → report), same stack (Python/Flask/SQLite/Click)
 - **BanksAerospace** — Government contract data, same domain (federal spending)
